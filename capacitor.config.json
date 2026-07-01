@@ -1,0 +1,25 @@
+{
+  "appId": "com.hopehand.app",
+  "appName": "HopeHand",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#FFF8F5"
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "LIGHT",
+      "backgroundColor": "#FF6B6B"
+    },
+    "Keyboard": {
+      "resize": "body",
+      "style": "DARK"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#FFF8F5",
+      "showSpinner": false
+    }
+  }
+}
