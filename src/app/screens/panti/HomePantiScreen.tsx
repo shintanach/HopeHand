@@ -1,171 +1,193 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Bell, Users, Package, DollarSign, Calendar, Home, BarChart3, CheckCircle, User } from "lucide-react";
+import { Plus, Users, Heart, Calendar, LogOut, Settings, Award } from "lucide-react";
 import logoImg from "../../../imports/Removal-3.png";
-
-const stats = [
-  { icon: Users, label: "Relawan Bulan Ini", value: "24", color: "text-teal" },
-  { icon: Package, label: "Donasi Barang Masuk", value: "15", color: "text-teal" },
-  { icon: DollarSign, label: "Dana Terkumpul", value: "2.5 Jt", color: "text-teal" },
-];
-
-const recentActivity = [
-  {
-    id: 1,
-    type: "volunteer",
-    name: "Budi Santoso",
-    action: "mendaftar kegiatan Mengajar Matematika Kelas 5",
-    time: "2 jam lalu",
-  },
-  {
-    id: 2,
-    type: "donation",
-    name: "Siti Nurhaliza",
-    action: "mengirim donasi Sepatu Sekolah - 5 pasang",
-    time: "3 jam lalu",
-  },
-  {
-    id: 3,
-    type: "money",
-    name: "Ahmad Wijaya",
-    action: "berdonasi Rp 100.000 untuk Kampanye Renovasi",
-    time: "5 jam lalu",
-  },
-  {
-    id: 4,
-    type: "volunteer",
-    name: "Dewi Lestari",
-    action: "mendaftar kegiatan Main & Dongeng Bersama Anak",
-    time: "Kemarin",
-  },
-];
+import { getCurrentUser, logout } from "@/imports/appwrite/auth";
+import { kampanyeDB, kegiatanDB, pantiDB } from "@/imports/appwrite/database";
+import { getPreviewUrl } from "@/imports/appwrite/storage";
+import type { KampanyeDocument, KegiatanDocument, PantiDocument } from "@/imports/appwrite/types";
 
 export default function HomePantiScreen() {
   const navigate = useNavigate();
+  const [pantiName, setPantiName] = useState("...");
+  const [pantiDoc, setPantiDoc] = useState<PantiDocument | null>(null);
+  const [kampanye, setKampanye] = useState<KampanyeDocument[]>([]);
+  const [kegiatan, setKegiatan] = useState<KegiatanDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const userData = await getCurrentUser();
+        if (!userData || userData.userDoc?.role !== "panti") {
+          navigate("/login");
+          return;
+        }
+        
+        setPantiName(userData.userDoc?.nama || "Panti Asuhan");
+        
+        // Dapatkan document panti milik user ini
+        const pantiRes = await pantiDB.getByUserId(userData.authUser.$id);
+        const myPanti = pantiRes.documents[0];
+        if (myPanti) {
+          setPantiDoc(myPanti);
+          
+          const [kampRes, kegRes] = await Promise.allSettled([
+            kampanyeDB.listAktif([]),
+            kegiatanDB.listUpcoming([]),
+          ]);
+          
+          if (kampRes.status === "fulfilled") {
+            setKampanye(kampRes.value.documents.filter(k => k.pantiId === myPanti.$id));
+          }
+          if (kegRes.status === "fulfilled") {
+            setKegiatan(kegRes.value.documents.filter(k => k.pantiId === myPanti.$id));
+          }
+        }
+      } catch {
+        // silently fail
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [navigate]);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+    } catch {
+      return dateStr;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-cream pb-20">
-      {/* Header */}
       <div className="bg-cream sticky top-0 z-10 border-b border-border/50">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-teal/20 flex items-center justify-center">
-                <Home className="w-6 h-6 text-teal" />
-              </div>
-              <div>
-                <h2 className="text-lg">Panti Asuhan Harapan Bangsa</h2>
-                <div className="flex items-center gap-1 text-sm text-teal">
-                  <CheckCircle className="w-4 h-4" />
-                  <span>Terverifikasi</span>
-                </div>
-              </div>
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-teal/20 flex items-center justify-center">
+              <Award className="w-6 h-6 text-teal" />
             </div>
-            <button className="relative w-10 h-10 rounded-full hover:bg-white transition-colors flex items-center justify-center">
-              <Bell className="w-6 h-6 text-foreground" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
-            </button>
+            <div>
+              <p className="text-xs text-foreground/50">Dashboard Pengelola</p>
+              <p className="text-sm font-medium text-foreground line-clamp-1">{pantiName}</p>
+            </div>
           </div>
+          <img src={logoImg} alt="Hope Hand" className="h-10 object-contain" />
+          <button onClick={handleLogout} className="w-10 h-10 rounded-full hover:bg-red-50 transition-colors flex items-center justify-center" title="Keluar">
+            <LogOut className="w-5 h-5 text-red-500" />
+          </button>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-3 gap-4">
-          {stats.map((stat, index) => (
-            <div
-              key={index}
-              className="bg-white rounded-2xl p-4 hover:shadow-lg transition-shadow"
-            >
-              <div
-                className={`w-12 h-12 rounded-full bg-teal/10 flex items-center justify-center mb-3 mx-auto`}
-              >
-                <stat.icon className={`w-6 h-6 ${stat.color}`} />
+      <div className="max-w-4xl mx-auto px-6 py-6 space-y-8">
+        {/* Detail Panti Overview */}
+        {pantiDoc && (
+          <div className="bg-white rounded-2xl p-6 border border-border/50 flex gap-6 items-center">
+            {pantiDoc.fotoPanti ? (
+              <img src={getPreviewUrl(pantiDoc.fotoPanti, 200).toString()} alt={pantiDoc.namaPanti} className="w-20 h-20 rounded-xl object-cover" />
+            ) : (
+              <div className="w-20 h-20 rounded-xl bg-teal/10 flex items-center justify-center">
+                <Users className="w-10 h-10 text-teal" />
               </div>
-              <p className={`text-2xl text-center ${stat.color} mb-1`}>
-                {stat.value}
-              </p>
-              <p className="text-xs text-center text-foreground/60">
-                {stat.label}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Alert Card */}
-        <div className="bg-orange-50 border-l-4 border-orange-400 rounded-2xl p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 text-orange-600">⚡</div>
-            <div className="flex-1">
-              <p className="text-foreground mb-1">
-                Ada kebutuhan mendesak belum terpenuhi
-              </p>
-              <button className="text-sm text-orange-600 hover:underline">
-                Lihat Sekarang →
-              </button>
+            )}
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">{pantiDoc.namaPanti}</h2>
+              <p className="text-sm text-foreground/60">{pantiDoc.kota}, {pantiDoc.provinsi}</p>
+              <p className="text-xs bg-teal/10 text-teal px-2 py-0.5 rounded-full w-fit mt-2">Terverifikasi</p>
             </div>
           </div>
+        )}
+
+        {/* Cepat Aksi */}
+        <div className="grid grid-cols-2 gap-4">
+          <button onClick={() => navigate("/panti/buat-kampanye")} className="bg-white rounded-2xl p-6 border border-border/50 hover:shadow-lg transition-all text-left flex flex-col justify-between h-32 group">
+            <div className="w-10 h-10 rounded-full bg-coral/10 group-hover:bg-coral/20 flex items-center justify-center transition-colors">
+              <Plus className="w-6 h-6 text-coral" />
+            </div>
+            <div>
+              <p className="font-medium text-foreground">Galang Dana</p>
+              <p className="text-xs text-foreground/50">Mulai kampanye baru</p>
+            </div>
+          </button>
+
+          <button onClick={() => navigate("/panti/buat-kegiatan")} className="bg-white rounded-2xl p-6 border border-border/50 hover:shadow-lg transition-all text-left flex flex-col justify-between h-32 group">
+            <div className="w-10 h-10 rounded-full bg-teal/10 group-hover:bg-teal/20 flex items-center justify-center transition-colors">
+              <Plus className="w-6 h-6 text-teal" />
+            </div>
+            <div>
+              <p className="font-medium text-foreground">Buka Kegiatan</p>
+              <p className="text-xs text-foreground/50">Undang relawan mengajar/membantu</p>
+            </div>
+          </button>
         </div>
 
-        {/* Recent Activity */}
-        <div className="bg-white rounded-2xl p-6">
-          <h3 className="text-lg mb-4">Aktivitas Terbaru</h3>
-          <div className="space-y-4">
-            {recentActivity.map((activity) => (
-              <div key={activity.id} className="flex gap-3">
-                <div className="w-10 h-10 rounded-full bg-teal/10 flex items-center justify-center shrink-0">
-                  {activity.type === "volunteer" && (
-                    <Users className="w-5 h-5 text-teal" />
-                  )}
-                  {activity.type === "donation" && (
-                    <Package className="w-5 h-5 text-teal" />
-                  )}
-                  {activity.type === "money" && (
-                    <DollarSign className="w-5 h-5 text-teal" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground">
-                    <span className="font-medium">{activity.name}</span>{" "}
-                    {activity.action}
-                  </p>
-                  <p className="text-xs text-foreground/60 mt-1">
-                    {activity.time}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Kampanye Milik Panti */}
+        <div>
+          <h3 className="text-lg font-medium text-foreground mb-4">Kampanye Saya</h3>
+          {loading ? (
+            <div className="grid grid-cols-2 gap-4">{[1, 2].map(i => <div key={i} className="bg-white rounded-2xl h-48 animate-pulse" />)}</div>
+          ) : kampanye.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 text-center border border-dashed border-border">
+              <Heart className="w-12 h-12 mx-auto text-foreground/20 mb-3" />
+              <p className="text-foreground/60 text-sm mb-4">Belum ada kampanye aktif</p>
+              <button onClick={() => navigate("/panti/buat-kampanye")} className="px-4 py-2 bg-coral text-white rounded-full text-sm hover:bg-coral/90 transition-colors">Buat Kampanye</button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {kampanye.map((item) => {
+                const progress = item.targetDana > 0 ? Math.min(100, Math.round((item.terkumpul / item.targetDana) * 100)) : 0;
+                return (
+                  <div key={item.$id} className="bg-white rounded-2xl p-4 border border-border/50 hover:shadow-md transition-shadow">
+                    <p className="font-medium text-foreground line-clamp-1">{item.judul}</p>
+                    <div className="mt-4 space-y-2">
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-coral rounded-full" style={{ width: `${progress}%` }} />
+                      </div>
+                      <div className="flex justify-between text-xs text-foreground/60">
+                        <span>{progress}% Terkumpul</span>
+                        <span>Target: Rp {item.targetDana.toLocaleString("id-ID")}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-      </div>
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-border">
-        <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-around">
-          <button onClick={() => navigate("/panti/home")} className="flex flex-col items-center gap-1 text-teal">
-            <Home className="w-6 h-6 fill-teal" />
-            <span className="text-xs font-semibold">Beranda</span>
-          </button>
-
-          <button onClick={() => navigate("/panti/kegiatan")} className="flex flex-col items-center gap-1 text-foreground/60 hover:text-foreground">
-            <Calendar className="w-6 h-6" />
-            <span className="text-xs">Kegiatan</span>
-          </button>
-
-          <button onClick={() => navigate("/panti/donasi")} className="flex flex-col items-center gap-1 text-foreground/60 hover:text-foreground">
-            <Package className="w-6 h-6" />
-            <span className="text-xs">Donasi</span>
-          </button>
-
-          <button onClick={() => navigate("/panti/laporan")} className="flex flex-col items-center gap-1 text-foreground/60 hover:text-foreground">
-            <BarChart3 className="w-6 h-6" />
-            <span className="text-xs">Laporan</span>
-          </button>
-
-          <button onClick={() => navigate("/panti/profil")} className="flex flex-col items-center gap-1 text-foreground/60 hover:text-foreground">
-            <User className="w-6 h-6" />
-            <span className="text-xs">Profil</span>
-          </button>
+        {/* Kegiatan Milik Panti */}
+        <div>
+          <h3 className="text-lg font-medium text-foreground mb-4">Kegiatan Saya</h3>
+          {loading ? (
+            <div className="space-y-3">{[1, 2].map(i => <div key={i} className="bg-white rounded-2xl h-24 animate-pulse" />)}</div>
+          ) : kegiatan.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 text-center border border-dashed border-border">
+              <Calendar className="w-12 h-12 mx-auto text-foreground/20 mb-3" />
+              <p className="text-foreground/60 text-sm mb-4">Belum ada jadwal kegiatan</p>
+              <button onClick={() => navigate("/panti/buat-kegiatan")} className="px-4 py-2 bg-teal text-white rounded-full text-sm hover:bg-teal/90 transition-colors">Buat Kegiatan</button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {kegiatan.map((act) => (
+                <div key={act.$id} className="bg-white rounded-2xl p-4 border border-border/50 hover:shadow-md transition-shadow flex justify-between items-center">
+                  <div>
+                    <p className="font-medium text-foreground">{act.judul}</p>
+                    <p className="text-xs text-foreground/50 mt-1">{formatDate(act.tanggal)} · {act.waktuMulai} - {act.waktuSelesai}</p>
+                  </div>
+                  <div className="bg-teal/10 text-teal px-3 py-1 rounded-full text-xs">
+                    {(act.relawanTerdaftar ?? []).length} Relawan
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

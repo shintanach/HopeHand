@@ -7,7 +7,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 function figmaAssetResolver() {
   return {
     name: 'figma-asset-resolver',
-    resolveId(id) {
+    resolveId(id: string) {
       if (id.startsWith('figma:asset/')) {
         const filename = id.replace('figma:asset/', '')
         return path.resolve(__dirname, 'src/assets', filename)
@@ -23,6 +23,9 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+// skipWaiting: true,
+// clientsClaim: true,
+// cleanupOutdatedCaches: true,
       includeAssets: ['icons/*.png', 'manifest.json'],
       manifest: {
         name: 'HopeHand',
@@ -49,6 +52,7 @@ export default defineConfig({
       workbox: {
         // Cache app shell & assets
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             // Cache Appwrite API calls (stale-while-revalidate)
@@ -72,5 +76,12 @@ export default defineConfig({
     },
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  // Konfigurasi build untuk mengatur batas ukuran chunk
+  build: {
+    // Ukuran batas per chunk dalam kilobyte (contoh: 1000KB = 1MB)
+    chunkSizeWarningLimit: 1000,
+  },
+
 })
 

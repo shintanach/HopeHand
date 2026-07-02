@@ -20,6 +20,7 @@ export interface UserDocument extends AppwriteDocument {
   telepon?: string;
   alamat?: string;
   createdAt: string;
+  status?: "aktif" | "suspend" | "banned";
 }
 
 // ── Panti Collection ──────────────────────────────────────

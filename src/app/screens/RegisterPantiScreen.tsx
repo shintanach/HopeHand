@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, Camera, Upload, Eye, EyeOff, Check, AlertCircle } from "lucide-react";
-import { registerPanti, getAuthErrorMessage } from "@/imports/appwrite/auth";
-import { uploadDokumenPanti } from "@/imports/appwrite/storage";
+import { ArrowLeft, Camera, Upload, Eye, EyeOff, Check, AlertCircle, X } from "lucide-react";
+import { registerPanti, getAuthErrorMessage } from "../../imports/appwrite/auth";
+import { uploadDokumenPanti } from "../../imports/appwrite/storage";
 
 export default function RegisterPantiScreen() {
   const navigate = useNavigate();
@@ -15,8 +15,12 @@ export default function RegisterPantiScreen() {
   // File state
   const [ktpFile, setKtpFile] = useState<File | null>(null);
   const [suratFile, setSuratFile] = useState<File | null>(null);
+  const [pantiFotoFile, setPantiFotoFile] = useState<File | null>(null);
+  const [pantiFotoPreview, setPantiFotoPreview] = useState<string | null>(null);
+
   const ktpInputRef = useRef<HTMLInputElement>(null);
   const suratInputRef = useRef<HTMLInputElement>(null);
+  const pantiFotoInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     managerName: "",
@@ -28,10 +32,30 @@ export default function RegisterPantiScreen() {
     confirmPassword: "",
   });
 
+  const handleFotoPantiChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setPantiFotoFile(file);
+      setPantiFotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleRemoveFotoPanti = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPantiFotoFile(null);
+    setPantiFotoPreview(null);
+    if (pantiFotoInputRef.current) pantiFotoInputRef.current.value = "";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       setError("Password dan konfirmasi password tidak cocok.");
+      return;
+    }
+    // Validate required fields
+    if (!formData.managerName || !formData.pantiName || !formData.email || !formData.phone || !formData.address || !formData.password || !formData.confirmPassword) {
+      setError("Semua bidang wajib diisi.");
       return;
     }
     setIsLoading(true);
@@ -40,6 +64,7 @@ export default function RegisterPantiScreen() {
       // Upload dokumen ke Appwrite Storage
       let dokumenKTPId: string | undefined;
       let dokumenSuratIzinId: string | undefined;
+      let fotoPantiId: string | undefined;
 
       if (ktpFile) {
         const ktpResult = await uploadDokumenPanti(ktpFile);
@@ -48,6 +73,10 @@ export default function RegisterPantiScreen() {
       if (suratFile) {
         const suratResult = await uploadDokumenPanti(suratFile);
         dokumenSuratIzinId = suratResult.$id;
+      }
+      if (pantiFotoFile) {
+        const pantiFotoResult = await uploadDokumenPanti(pantiFotoFile);
+        fotoPantiId = pantiFotoResult.$id;
       }
 
       // Register panti
@@ -64,11 +93,12 @@ export default function RegisterPantiScreen() {
         jumlahAnak: 0,
         dokumenKTP: dokumenKTPId,
         dokumenSuratIzin: dokumenSuratIzinId,
+        fotoPanti: fotoPantiId,
       });
 
       navigate("/pending-verification");
     } catch (err) {
-      setError(getAuthErrorMessage(err));
+      setError(err instanceof Error ? err.message : getAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -91,14 +121,37 @@ export default function RegisterPantiScreen() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Panti Logo Upload */}
           <div className="flex justify-center">
+            <input 
+              type="file"
+              ref={pantiFotoInputRef}
+              onChange={handleFotoPantiChange}
+              accept="image/*"
+              className="hidden"
+            />
             <button
               type="button"
-              className="relative w-32 h-32 rounded-full bg-teal/10 border-2 border-dashed border-teal flex items-center justify-center hover:bg-teal/20 transition-colors"
+              onClick={() => pantiFotoInputRef.current?.click()}
+              className="relative w-32 h-32 rounded-full bg-teal/10 border-2 border-dashed border-teal flex items-center justify-center hover:bg-teal/20 transition-colors overflow-hidden group"
             >
-              <Camera className="w-8 h-8 text-teal" />
-              <div className="absolute -bottom-2 bg-white px-3 py-1 rounded-full text-xs text-foreground/60">
-                Logo Panti
-              </div>
+              {pantiFotoPreview ? (
+                <>
+                  <img src={pantiFotoPreview} alt="Preview Logo Panti" className="w-full h-full object-cover" />
+                  <button 
+                    type="button" 
+                    onClick={handleRemoveFotoPanti}
+                    className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                  >
+                    <X className="w-6 h-6 text-white" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-8 h-8 text-teal animate-pulse" />
+                  <div className="absolute bottom-2 bg-white/85 px-2 py-0.5 rounded-full text-[10px] text-foreground/60">
+                    Logo Panti
+                  </div>
+                </>
+              )}
             </button>
           </div>
 

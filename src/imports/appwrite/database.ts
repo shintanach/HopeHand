@@ -21,6 +21,9 @@ export const userDB = {
 
   update: (userId: string, data: Partial<UserDocument>) =>
     databases.updateDocument<UserDocument>(DB_ID, COLLECTIONS.USERS, userId, data),
+
+  listAll: (queries: string[] = []) =>
+    databases.listDocuments<UserDocument>(DB_ID, COLLECTIONS.USERS, queries),
 };
 
 // ─────────────────────────────────────────────────────────
@@ -64,7 +67,6 @@ export const pantiDB = {
   verify: (pantiId: string) =>
     databases.updateDocument<PantiDocument>(DB_ID, COLLECTIONS.PANTI, pantiId, {
       status: STATUS_PANTI.TERVERIFIKASI,
-      verifiedAt: new Date().toISOString(),
     }),
 
   /** Admin: tolak panti */
@@ -81,6 +83,9 @@ export const pantiDB = {
 export const kampanyeDB = {
   getById: (kampanyeId: string) =>
     databases.getDocument<KampanyeDocument>(DB_ID, COLLECTIONS.KAMPANYE, kampanyeId),
+
+  listAll: (queries: string[] = []) =>
+    databases.listDocuments<KampanyeDocument>(DB_ID, COLLECTIONS.KAMPANYE, queries),
 
   /** Semua kampanye aktif (untuk explore relawan) */
   listAktif: (queries: string[] = []) =>
@@ -139,6 +144,9 @@ export const kegiatanDB = {
   getById: (kegiatanId: string) =>
     databases.getDocument<KegiatanDocument>(DB_ID, COLLECTIONS.KEGIATAN, kegiatanId),
 
+  listAll: (queries: string[] = []) =>
+    databases.listDocuments<KegiatanDocument>(DB_ID, COLLECTIONS.KEGIATAN, queries),
+
   listByPanti: (pantiId: string) =>
     databases.listDocuments<KegiatanDocument>(DB_ID, COLLECTIONS.KEGIATAN, [
       Query.equal("pantiId", pantiId),
@@ -185,6 +193,9 @@ export const kegiatanDB = {
 export const donasiBarangDB = {
   getById: (donasiId: string) =>
     databases.getDocument<DonasiBarangDocument>(DB_ID, COLLECTIONS.DONASI_BARANG, donasiId),
+
+  listAll: (queries: string[] = []) =>
+    databases.listDocuments<DonasiBarangDocument>(DB_ID, COLLECTIONS.DONASI_BARANG, queries),
 
   /** List donasi masuk ke panti tertentu */
   listByPanti: (pantiId: string, queries: string[] = []) =>
@@ -259,6 +270,9 @@ export const kebutuhanDB = {
 export const donasiUangDB = {
   getById: (donasiId: string) =>
     databases.getDocument<DonasiUangDocument>(DB_ID, COLLECTIONS.DONASI_UANG, donasiId),
+
+  listAll: (queries: string[] = []) =>
+    databases.listDocuments<DonasiUangDocument>(DB_ID, COLLECTIONS.DONASI_UANG, queries),
 
   listByKampanye: (kampanyeId: string) =>
     databases.listDocuments<DonasiUangDocument>(DB_ID, COLLECTIONS.DONASI_UANG, [
@@ -361,3 +375,64 @@ export const notifikasiDB = {
   delete: (notifId: string) =>
     databases.deleteDocument(DB_ID, COLLECTIONS.NOTIFIKASI, notifId),
 };
+
+// ─────────────────────────────────────────────────────────
+// CLICK TRACKER (Menggunakan dokumen sistem di notifikasi)
+// ─────────────────────────────────────────────────────────
+export const clickTrackerDB = {
+  getClickCount: async (): Promise<number> => {
+    try {
+      const res = await databases.listDocuments<NotifikasiDocument>(
+        DB_ID,
+        COLLECTIONS.NOTIFIKASI,
+        [Query.equal("userId", "sistem_click_tracker"), Query.limit(1)]
+      );
+      if (res.documents.length > 0) {
+        return parseInt(res.documents[0].pesan) || 0;
+      }
+      return 0;
+    } catch {
+      return 0;
+    }
+  },
+  trackClick: async (): Promise<void> => {
+    if (sessionStorage.getItem("tracked_share_click")) return;
+    sessionStorage.setItem("tracked_share_click", "true");
+
+    try {
+      const res = await databases.listDocuments<NotifikasiDocument>(
+        DB_ID,
+        COLLECTIONS.NOTIFIKASI,
+        [Query.equal("userId", "sistem_click_tracker"), Query.limit(1)]
+      );
+
+      if (res.documents.length > 0) {
+        const doc = res.documents[0];
+        const currentCount = parseInt(doc.pesan) || 0;
+        await databases.updateDocument(
+          DB_ID,
+          COLLECTIONS.NOTIFIKASI,
+          doc.$id,
+          { pesan: String(currentCount + 1) }
+        );
+      } else {
+        await databases.createDocument(
+          DB_ID,
+          COLLECTIONS.NOTIFIKASI,
+          ID.unique(),
+          {
+            userId: "sistem_click_tracker",
+            judul: "Total Share Clicks",
+            pesan: "1",
+            tipe: "sistem",
+            dibaca: true,
+            createdAt: new Date().toISOString(),
+          }
+        );
+      }
+    } catch (err) {
+      console.error("Gagal mencatat click:", err);
+    }
+  }
+};
+

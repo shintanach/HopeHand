@@ -74,18 +74,7 @@ export default function PendingVerificationScreen() {
           </div>
         </div>
 
-        {/* Actions */}
         <div className="space-y-3">
-          <button
-            onClick={() => {
-              window.location.href = "mailto:admin@hopehand.id";
-            }}
-            className="w-full py-3 bg-teal text-white rounded-full hover:bg-teal/90 transition-colors flex items-center justify-center gap-2"
-          >
-            <Mail className="w-5 h-5" />
-            Hubungi Admin
-          </button>
-
           <button
             onClick={() => navigate("/login")}
             className="w-full py-3 text-foreground/70 hover:text-foreground transition-colors"

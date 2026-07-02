@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router";
+import { Pencil, Trash2, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import AdminBottomNav from "./AdminBottomNav";
+import { logout } from "@/imports/appwrite/auth";
 
 interface PaymentMethod {
   id: string;
@@ -47,6 +49,8 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
 }
 
 export default function PengaturanPlatformScreen() {
+  const navigate = useNavigate();
+
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(initialPaymentMethods);
   const [pendingToggle, setPendingToggle] = useState<string | null>(null);
 
@@ -68,6 +72,7 @@ export default function PengaturanPlatformScreen() {
   const [announceTitle, setAnnounceTitle] = useState("");
   const [announceBody, setAnnounceBody] = useState("");
   const [showAnnounceDialog, setShowAnnounceDialog] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   const [notifs, setNotifs] = useState<Record<NotifKey, boolean>>({
     kegiatanBaru: true,
@@ -361,6 +366,47 @@ export default function PengaturanPlatformScreen() {
             <div className="flex gap-3">
               <button onClick={() => setShowAnnounceDialog(false)} className="flex-1 py-2.5 rounded-full text-sm border border-border" style={{ color: "#6D5A4F" }}>Batal</button>
               <button onClick={handleSendAnnouncement} className="flex-1 py-2.5 rounded-full text-sm font-bold text-white" style={{ backgroundColor: "#B4A7E7" }}>Ya, Kirim</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sign Out Button */}
+      <div className="px-5 pb-4">
+        <button
+          type="button"
+          onClick={() => setShowLogoutDialog(true)}
+          className="w-full py-3 rounded-full text-sm font-semibold border-2 flex items-center justify-center gap-2 transition-opacity hover:opacity-80"
+          style={{ borderColor: "#EF4444", color: "#EF4444", backgroundColor: "white" }}
+        >
+          <LogOut className="w-4 h-4" />
+          Keluar dari Admin
+        </button>
+      </div>
+
+      {/* Logout Confirmation Dialog */}
+      {showLogoutDialog && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-6">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+            <p className="font-bold text-base mb-2 text-center" style={{ color: "#6D5A4F" }}>Keluar dari Admin?</p>
+            <p className="text-sm text-center text-gray-500 mb-5">Sesi admin akan diakhiri dan Anda akan diarahkan ke halaman login.</p>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setShowLogoutDialog(false)} className="flex-1 py-2.5 rounded-full text-sm border border-border" style={{ color: "#6D5A4F" }}>Batal</button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await logout();
+                    navigate("/login");
+                  } catch {
+                    toast.error("Gagal logout");
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-full text-sm font-bold text-white"
+                style={{ backgroundColor: "#EF4444" }}
+              >
+                Ya, Keluar
+              </button>
             </div>
           </div>
         </div>

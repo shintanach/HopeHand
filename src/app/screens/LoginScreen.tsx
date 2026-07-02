@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Mail, Lock, Eye, EyeOff, User, Home, Settings, Check, AlertCircle } from "lucide-react";
 import logoImg from "../../imports/Removal-3.png";
-import { login, loginWithGoogle, getCurrentUser, sendPasswordReset, getAuthErrorMessage } from "@/imports/appwrite/auth";
+import { login, loginWithGoogle, getCurrentUser, sendPasswordReset, getAuthErrorMessage } from "../../imports/appwrite/auth";
+import { setPendingRole, getPendingRole, clearPendingRole } from "../../imports/appwrite/roleStorage";
 
 type UserRole = "relawan" | "panti" | "admin" | null;
 
@@ -49,12 +50,73 @@ export default function LoginScreen() {
     setError(null);
     try {
       await login(email, password);
-      const user = await getCurrentUser();
+      let user = await getCurrentUser();
+      console.log("[LoginScreen Debug] User data:", user);
+      
+      // AUTO-CREATOR ADMIN: Jika user berhasil ter-auth tetapi userDoc kosong,
+      // dan email yang digunakan adalah domain admin@hopehand.org, otomatis buatkan dokumennya di database.
+      if (user?.authUser && !user.userDoc && email.endsWith("@hopehand.org")) {
+        console.log("[LoginScreen Debug] Admin detected but missing DB document. Auto-creating document...");
+        try {
+          const { databases } = await import("@/imports/appwrite/client");
+          const { DB_ID, COLLECTIONS } = await import("@/imports/appwrite/config");
+          
+          await databases.createDocument(
+            DB_ID,
+            COLLECTIONS.USERS,
+            user.authUser.$id,
+            {
+              userId: user.authUser.$id,
+              nama: user.authUser.name || "Admin HopeHand",
+              email: user.authUser.email,
+              role: "admin",
+              createdAt: new Date().toISOString()
+            }
+          );
+          console.log("[LoginScreen Debug] Admin DB document successfully created!");
+          // Ambil ulang user data setelah dokumen dibuat
+          user = await getCurrentUser();
+        } catch (dbErr) {
+          console.error("[LoginScreen Debug] Failed to auto-create admin doc:", dbErr);
+        }
+      }
+
+      if (user?.userDoc) {
+        if (user.userDoc.status === "suspend") {
+          setError("Akun Anda ditangguhkan (suspend) sementara. Hubungi admin.");
+          await logout();
+          setIsLoading(false);
+          return;
+        } else if (user.userDoc.status === "banned") {
+          setError("Akun Anda diblokir (banned) secara permanen.");
+          await logout();
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const role = user?.userDoc?.role;
-      if (role === "relawan") navigate("/relawan/home");
-      else if (role === "panti") navigate("/panti/home");
-      else if (role === "admin") navigate("/admin/home");
-      else navigate("/relawan/home"); // fallback
+      console.log("[LoginScreen Debug] Detected role:", role);
+      if (role === "relawan") {
+        navigate("/relawan/home", { replace: true });
+      } else if (role === "panti") {
+        const { pantiDB } = await import("@/imports/appwrite/database");
+        const pantiRes = await pantiDB.getByUserId(user!.authUser.$id);
+        const myPanti = pantiRes.documents[0];
+        if (myPanti?.status === "terverifikasi") {
+          navigate("/panti/home", { replace: true });
+        } else if (myPanti?.status === "ditolak") {
+          setError("Pendaftaran panti Anda ditolak oleh admin. Alasan: " + (myPanti.catatanAdmin || "-"));
+          await logout();
+        } else {
+          navigate("/pending-verification", { replace: true });
+        }
+      } else if (role === "admin") {
+        navigate("/admin/home", { replace: true });
+      } else {
+        console.log("[LoginScreen Debug] Role not matched, redirecting to fallback /relawan/home");
+        navigate("/relawan/home", { replace: true }); // fallback
+      }
     } catch (err) {
       setError(getAuthErrorMessage(err));
     } finally {
@@ -63,6 +125,10 @@ export default function LoginScreen() {
   };
 
   const handleGoogleLogin = () => {
+    // Save the selected role so we can redirect appropriately after OAuth
+    if (selectedRole) {
+      setPendingRole(selectedRole);
+    }
     loginWithGoogle();
   };
 
@@ -78,6 +144,66 @@ export default function LoginScreen() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const handleRedirect = async () => {
+      const user = await getCurrentUser();
+      if (user?.userDoc) {
+        if (user.userDoc.status === "suspend") {
+          setError("Akun Anda ditangguhkan (suspend) sementara. Hubungi admin.");
+          await logout();
+          clearPendingRole();
+          return;
+        } else if (user.userDoc.status === "banned") {
+          setError("Akun Anda diblokir (banned) secara permanen.");
+          await logout();
+          clearPendingRole();
+          return;
+        }
+
+        const role = user.userDoc.role;
+        if (role === "panti") {
+          const { pantiDB } = await import("@/imports/appwrite/database");
+          const pantiRes = await pantiDB.getByUserId(user.authUser.$id);
+          const myPanti = pantiRes.documents[0];
+          if (myPanti?.status === "terverifikasi") {
+            navigate("/panti/home", { replace: true });
+          } else if (myPanti?.status === "ditolak") {
+            setError("Pendaftaran panti Anda ditolak oleh admin. Alasan: " + (myPanti.catatanAdmin || "-"));
+            await logout();
+          } else {
+            navigate("/pending-verification", { replace: true });
+          }
+        } else if (role === "relawan") {
+          navigate("/relawan/home", { replace: true });
+        } else if (role === "admin") {
+          navigate("/admin/home", { replace: true });
+        } else {
+          navigate("/relawan/home", { replace: true });
+        }
+        clearPendingRole();
+        return;
+      }
+
+      if (user?.authUser) {
+        const pending = getPendingRole();
+        if (pending === "panti") {
+          navigate("/register/panti");
+          return;
+        }
+        if (pending === "relawan") {
+          navigate("/register/relawan");
+          return;
+        }
+      }
+
+      const pending = getPendingRole();
+      if (pending) {
+        setSelectedRole(pending as UserRole);
+      }
+    };
+    void handleRedirect();
+  }, [navigate]);
 
   const handleRegister = () => {
     if (selectedRole === "relawan") {
@@ -220,15 +346,17 @@ export default function LoginScreen() {
                 </div>
 
                 {/* Forgot Password Link */}
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowForgotPassword(true)}
-                    className="text-sm text-coral hover:underline"
-                  >
-                    Lupa Password?
-                  </button>
-                </div>
+                {selectedRole !== "admin" && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="text-sm text-coral hover:underline"
+                    >
+                      Lupa Password?
+                    </button>
+                  </div>
+                )}
 
                 {/* Login Button */}
                 <button
@@ -281,13 +409,6 @@ export default function LoginScreen() {
                       <span>Masuk dengan Google</span>
                     </button>
                   </>
-                )}
-
-                {/* Admin Info Text */}
-                {selectedRole === "admin" && (
-                  <p className="text-xs text-center text-foreground/60">
-                    Akun Admin disiapkan oleh tim pengembang
-                  </p>
                 )}
 
                 {/* Register Link */}

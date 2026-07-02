@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { clearPendingRole } from '../../imports/appwrite/roleStorage';
+import { getCurrentUser, logout } from '../../imports/appwrite/auth';
 import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Users, Package, Heart } from "lucide-react";
@@ -25,28 +27,57 @@ export default function OnboardingScreen() {
   const navigate = useNavigate();
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  const handleNext = () => {
+
+  const handleNext = async () => {
     if (currentSlide < slides.length - 1) {
       setCurrentSlide(currentSlide + 1);
     } else {
-      navigate("/login");
+      // Logout and clean persisted auth data in background to prevent blocking
+      logout().catch(() => {});
+      try {
+        localStorage.removeItem('appwrite:account');
+        sessionStorage.clear();
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(regs => {
+            regs.forEach(r => r.unregister());
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to clean auth storage:', e);
+      }
+      clearPendingRole();
+      navigate('/login', { replace: true });
     }
   };
 
-  const handleSkip = () => {
-    navigate("/login");
+  const handleSkip = async () => {
+    logout().catch(() => {});
+    try {
+      localStorage.removeItem('appwrite:account');
+      sessionStorage.clear();
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          regs.forEach(r => r.unregister());
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to clean auth storage on skip:', e);
+    }
+    clearPendingRole();
+    navigate('/login', { replace: true });
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-cream">
       {/* Skip button */}
-      <div className="flex justify-end p-6">
+      <div className="flex justify-between p-6">
         <button
           onClick={handleSkip}
           className="text-foreground/60 hover:text-foreground transition-colors"
         >
           Lewati
         </button>
+
       </div>
 
       {/* Content */}

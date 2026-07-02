@@ -13,6 +13,10 @@ import ExploreScreen from "./screens/relawan/ExploreScreen";
 import RiwayatScreen from "./screens/relawan/RiwayatScreen";
 import ProfilScreen from "./screens/relawan/ProfilScreen";
 import NotifikasiScreen from "./screens/relawan/NotifikasiScreen";
+import FavoritScreen from "./screens/relawan/FavoritScreen";
+import PengaturanNotifikasiScreen from "./screens/relawan/PengaturanNotifikasiScreen";
+import BantuanFAQScreen from "./screens/relawan/BantuanFAQScreen";
+import SyaratKetentuanScreen from "./screens/relawan/SyaratKetentuanScreen";
 
 // Pengelola Panti Screens
 import HomePantiScreen from "./screens/panti/HomePantiScreen";
@@ -37,11 +41,16 @@ import ManajemenPenggunaScreen from "./screens/admin/ManajemenPenggunaScreen";
 import UserDetailScreen from "./screens/admin/UserDetailScreen";
 import LaporanAdminScreen from "./screens/admin/LaporanAdminScreen";
 import PengaturanPlatformScreen from "./screens/admin/PengaturanPlatformScreen";
+import TrackRedirectScreen from "./screens/TrackRedirectScreen";
 
 export const router = createBrowserRouter([
   {
     path: "/",
     element: <SplashScreen />,
+  },
+  {
+    path: "/r",
+    element: <TrackRedirectScreen />,
   },
   {
     path: "/onboarding",
@@ -87,6 +96,22 @@ export const router = createBrowserRouter([
   {
     path: "/relawan/notifikasi",
     element: <NotifikasiScreen />,
+  },
+  {
+    path: "/relawan/favorit",
+    element: <FavoritScreen />,
+  },
+  {
+    path: "/relawan/pengaturan-notifikasi",
+    element: <PengaturanNotifikasiScreen />,
+  },
+  {
+    path: "/relawan/bantuan-faq",
+    element: <BantuanFAQScreen />,
+  },
+  {
+    path: "/relawan/syarat-ketentuan",
+    element: <SyaratKetentuanScreen />,
   },
   // Pengelola Panti Routes
   {
